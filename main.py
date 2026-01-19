@@ -29,10 +29,10 @@ def who_z_score(height, L, M, S):
 
 @app.post("/count_z_score/")
 def who_haz(sex, age, height):
-    if sex == 1:
-        data = pd.read_excel("data/height-Age/boys-zscore-high-tables.xlsx")
-    else: 
-        data = pd.read_excel("data/height-Age/girls-zscore-high-tables.xlsx")
+    if sex == 0:
+        data = pd.read_csv("data/height-Age/Monthly-girls-height-z-score.csv")
+    else:
+        data = pd.read_csv("data/height-Age/Monthly-boys-height-z-score.csv")
     row = data[data['Day']==age]
     z = who_z_score(height,
                     row["L"].iloc[0],
@@ -91,5 +91,5 @@ def predict(patient_data: PatientData):
 
 
 if __name__ == "__main__":
-    print(who_haz(0, 12, 40))
+    print(who_haz(0, 0, 49))
     
