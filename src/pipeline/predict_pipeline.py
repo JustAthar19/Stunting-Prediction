@@ -61,6 +61,13 @@ class PredictPipeline:
         try:
 
 
+            classes_dict = {
+                0:"normal",
+                1:"Stunting Tinggi",
+                2:"stunting",
+                3:"gizi baik"
+            }
+
             model_path = os.path.join('models', 'lightGBM.pkl')
             
             logging.info('Load model objects.')
@@ -76,9 +83,11 @@ class PredictPipeline:
             
             # Predict customer's churn probability.
             predicted_proba = model.predict_proba(prepared_data,predict_disable_shape_check=True)[:, 1][0]
+            class_prediction = model.predict(prepared_data)
 
             # Prediction output (customer's probability of churning).
-            prediction = f"""Probabilitas anak terkena stunting: {round(predicted_proba * 100, 3)}%"""
+            prediction = f"""Probabilitas anak terkena stunting: {round(predicted_proba * 100, 3)}%
+                        Diagnosa akhir: {classes_dict[class_prediction[0]]}"""
 
             logging.info('Prediction successfully made.')
 
