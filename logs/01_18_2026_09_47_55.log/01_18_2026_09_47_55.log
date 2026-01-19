@@ -1,0 +1,4 @@
+[ 2026-01-18 09:47:55,778 ] 164 numexpr.utils - INFO - NumExpr defaulting to 8 threads.
+[ 2026-01-18 09:48:51,702 ] 73 root - INFO - Load model objects.
+[ 2026-01-18 09:48:53,190 ] 77 root - INFO - Preprocess the input data.
+[ 2026-01-18 09:48:53,191 ] 82 root - INFO - Predict.
