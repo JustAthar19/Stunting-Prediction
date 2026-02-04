@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import pandas as pd 
 from src.pipeline.predict_pipeline import InputData, PredictPipeline
 import math
+from src.llm_recommender import generate_recommendation, LLMRecommendation
+from typing import List, Optional
 
 class PatientData(BaseModel):
     umur: int 
@@ -14,7 +16,16 @@ class OutputPred(BaseModel):
     stunting_prediction: str
 
 
-
+class RecommendationRequest(BaseModel):
+    sex: int
+    age: int
+    weight: float
+    height: float
+    # Optional context for better recommendations
+    language: Optional[str] = "id"
+    allergies: Optional[List[str]] = None
+    preferences: Optional[List[str]] = None
+    notes: Optional[str] = None
 
 
 # Initialize the FastAPI app.
@@ -27,51 +38,100 @@ def who_z_score(height, L, M, S):
     else:
         return math.log(height/M)/S
 
-@app.post("/count_z_score/")
-def who_haz(sex, age, height):
+def who_haz(sex:int, age:int, height:float):
     if sex == 0:
         data = pd.read_csv("data/height-Age/Monthly-girls-height-z-score.csv")
     else:
         data = pd.read_csv("data/height-Age/Monthly-boys-height-z-score.csv")
-    row = data[data['Day']==age]
+    row = data[data['Month']==age]
     z = who_z_score(height,
                     row["L"].iloc[0],
                     row["M"].iloc[0], 
                     row["S"].iloc[0])
     
     if z < -3:
-        print("Severly Stunted")
+        return "Severly Stunted"
     elif z >= -3 and z < -2:
-        print("Stunted")
+        return "Stunted"
     elif z >= 2 and z <= 3:
-        print("Normal")
+        return "Normal"
     else:
-        print("Vary Tall")
+        return "Vary Tall"
+    
+
+def who_waz(sex:int, age:int, weight:float):
+    if sex == 0:
+        data = pd.read_csv("data/weight-Age/Monthly-girls-weight-z-score.csv")
+    else: 
+        data = pd.read_csv("data/weight-Age/Monthly-boys-weight-z-score.csv")
+    row = data[data['Month']==age]
+    z = who_z_score(weight,
+                    row["L"].iloc[0],
+                    row["M"].iloc[0], 
+                    row["S"].iloc[0])
+    
+    if z < -3:
+        return "Severly underweight"
+    elif z >= -3 and z < -2:
+        return "underweight"
+    elif z >= 2 and z <= 3:
+        return "Normal"
+    else:
+        return "Very Tall"
     
     return z
 
-def who_waz(sex, age, height):
-    if sex == 1:
-        data = pd.read_excel("data/weight-Age/boys-zscore-high-tables.xlsx")
+def who_whz(sex: int, weight:float, length: float):
+    if sex == 0:
+        data = pd.read_excel("data/weight-Height/girls-zscore-weight-height.xlsx")
     else: 
-        data = pd.read_excel("data/weight-Age/girls-zscore-high-tables.xlsx")
-    row = data[data['Day']==age]
-    z = who_z_score(height,
+        data = pd.read_excel("data/weight-Height/boys-zscore-weight-height-table.xlsx")
+    row = data[data['Length']==length]
+    z = who_z_score(weight,
                     row["L"].iloc[0],
                     row["M"].iloc[0], 
                     row["S"].iloc[0])
     
     if z < -3:
-        print("Severly underweight")
+        return "Severly Wasting (SAM)"
     elif z >= -3 and z < -2:
-        print("underweight")
-    elif z >= 2 and z <= 3:
-        print("Normal")
-    else:
-        print("Very Tall")
-    
-    return z
-    
+        return "Moderate Wasting"
+    elif z >= 2 and z <= 1:
+        return "Normal"
+    elif z > 1 and  z <= 2:
+        return "Risk of Overweight"
+    elif z > 2 and z <= 3:
+        return "Overweight"
+    else: return "Obesity"
+
+
+@app.post("/diagnose")
+def diagnose(sex: int, age: int, weight: float, height: float):
+    return {
+        "Height per Age" : who_haz(sex, age, height),
+        "Weight per Age" : who_waz(sex, age, weight),
+        "Weight per Height" : who_whz(sex, weight, height)
+    }
+
+
+@app.post("/recommendation", response_model=LLMRecommendation)
+def recommendation(req: RecommendationRequest):
+    dx = diagnose(sex=req.sex, age=req.age, weight=req.weight, height=req.height)
+    return generate_recommendation(
+        diagnosis=dx,
+        patient={
+            "sex": req.sex,
+            "age_months": req.age,
+            "weight_kg": req.weight,
+            "height_cm": req.height,
+            "language": req.language,
+            "allergies": req.allergies,
+            "preferences": req.preferences,
+            "notes": req.notes,
+        },
+    )
+
+
 @app.post("/predict/")
 def predict(patient_data: PatientData):
     
