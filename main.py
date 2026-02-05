@@ -45,9 +45,9 @@ def who_haz(sex:int, age:int, height:float):
         data = pd.read_csv("data/height-Age/Monthly-boys-height-z-score.csv")
     row = data[data['Month']==age]
     z = who_z_score(height,
-                    row["L"].iloc[0],
-                    row["M"].iloc[0], 
-                    row["S"].iloc[0])
+                    row["L"].iloc[0].item(),
+                    row["M"].iloc[0].item(), 
+                    row["S"].iloc[0].item())
     
     if z < -3:
         return "Severly Stunted"
@@ -66,9 +66,9 @@ def who_waz(sex:int, age:int, weight:float):
         data = pd.read_csv("data/weight-Age/Monthly-boys-weight-z-score.csv")
     row = data[data['Month']==age]
     z = who_z_score(weight,
-                    row["L"].iloc[0],
-                    row["M"].iloc[0], 
-                    row["S"].iloc[0])
+                    row["L"].iloc[0].item(),
+                    row["M"].iloc[0].item(), 
+                    row["S"].iloc[0].item())
     
     if z < -3:
         return "Severly underweight"
@@ -81,16 +81,16 @@ def who_waz(sex:int, age:int, weight:float):
     
     return z
 
-def who_whz(sex: int, weight:float, length: float):
+def who_whz(sex: int, weight:float, height: float):
     if sex == 0:
         data = pd.read_excel("data/weight-Height/girls-zscore-weight-height.xlsx")
     else: 
         data = pd.read_excel("data/weight-Height/boys-zscore-weight-height-table.xlsx")
-    row = data[data['Length']==length]
+    row = data[data['Length']==height]
     z = who_z_score(weight,
-                    row["L"].iloc[0],
-                    row["M"].iloc[0], 
-                    row["S"].iloc[0])
+                    row["L"].iloc[0].item(),
+                    row["M"].iloc[0].item(), 
+                    row["S"].iloc[0].item())
     
     if z < -3:
         return "Severly Wasting (SAM)"
