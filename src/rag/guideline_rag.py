@@ -6,22 +6,29 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_community.document_loaders import Docx2txtLoader, PyPDFLoader, TextLoader
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+
 from dotenv import load_dotenv
 load_dotenv()
-
 
 @dataclass(frozen=True)
 class RagConfig:
     docs_dir: Path
     persist_dir: Path
-    collection_name: str = "guidelines"
-    chunk_size: int = 1000
-    chunk_overlap: int = 150
+    collection_name: str = "guideline"
+    chunk_size: int = 300
+    chunk_overlap: int = 80
     top_k: int = 4
 
 
 def _default_docs_dir(project_root: Path) -> Path:
-    """Support both `data/guideline` and `data/guidelines`."""
     p1 = project_root / "data" / "guidelines"
     p2 = project_root / "data" / "guideline"
     if p1.exists():
@@ -70,8 +77,6 @@ def _iter_guideline_files(docs_dir: Path) -> Iterable[Path]:
 
 
 def _load_documents(paths: list[Path]):
-    from langchain_community.document_loaders import Docx2txtLoader, PyPDFLoader, TextLoader
-
     docs = []
     for p in paths:
         suffix = p.suffix.lower()
@@ -108,15 +113,8 @@ def _doc_id(doc) -> str:
 
 
 def _get_embeddings(*, gemini_api_key: Optional[str]):
-    """
-    We use Gemini embeddings when GEMINI_API_KEY is available.
-    If you want a different embedding provider, swap this function.
-    """
     if not gemini_api_key:
         return None
-    from langchain_google_genai import GoogleGenerativeAIEmbeddings
-
-    # Text embeddings model name for Gemini family
     return GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=gemini_api_key)
 
 
@@ -214,7 +212,6 @@ def rag_answer(
     *,
     question: str,
     gemini_api_key: Optional[str],
-    model: str = "gemini-2.5-flash",
     config: Optional[RagConfig] = None,
 ) -> Optional[str]:
     """
@@ -225,11 +222,6 @@ def rag_answer(
     retriever = get_retriever(config=config, gemini_api_key=gemini_api_key)
     if retriever is None:
         return None
-
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_classic.chains import create_retrieval_chain
-    from langchain_classic.chains.combine_documents import create_stuff_documents_chain
-    from langchain_core.prompts import ChatPromptTemplate
 
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=gemini_api_key, temperature=0.4)
 
