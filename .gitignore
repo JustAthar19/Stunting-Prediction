@@ -1,3 +1,13 @@
 /logs/
 /src/__pycache__/
 /src/pipeline/__pycache__/
+.DS_Store
+__pycache__
+.env
+.venv/
+venv/
+.python-version
+
+# Chroma persistence
+chroma_db/
+data/chroma*/
