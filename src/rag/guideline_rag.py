@@ -208,16 +208,7 @@ def get_retriever(*, config: Optional[RagConfig] = None, gemini_api_key: Optiona
     return vs.as_retriever(search_kwargs={"k": config.top_k})
 
 
-def rag_answer(
-    *,
-    question: str,
-    gemini_api_key: Optional[str],
-    config: Optional[RagConfig] = None,
-) -> Optional[str]:
-    """
-    Run a retrieval-augmented generation chain.
-    Returns the answer string or None if RAG is not available.
-    """
+def rag_answer(*, question: str, gemini_api_key: Optional[str], model: str,config: Optional[RagConfig] = None) -> Optional[str]:
     config = config or get_rag_config()
     retriever = get_retriever(config=config, gemini_api_key=gemini_api_key)
     if retriever is None:
