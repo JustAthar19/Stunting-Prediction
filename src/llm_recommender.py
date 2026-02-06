@@ -34,17 +34,17 @@ def _fallback_recommendation(diagnosis: dict[str, str], patient: dict[str, Any])
     ]
 
     focus: list[str] = ["", "### Fokus berdasarkan hasil"]
-    if "Severly" in haz or haz.lower().startswith("stunted") or "Stunted" in haz:
+    if "sangat" in haz or haz.lower().startswith("stunting") or "stunting" in haz:
         focus += [
             "- **Tinggi menurut umur rendah**: prioritaskan **protein hewani harian** + energi cukup (jangan hanya bubur encer).",
             "- **Target**: makan padat gizi, tambah 1 porsi protein hewani per hari bila memungkinkan.",
         ]
-    if "underweight" in waz.lower() or "severly underweight" in waz.lower():
+    if "buruk" in waz.lower() or "kurang" in waz.lower():
         focus += [
             "- **Berat menurut umur rendah**: tambah **frekuensi makan** (makan utama + 2 selingan) dan tingkatkan porsi bertahap.",
             "- **Contoh selingan**: pisang + susu/yogurt (jika cocok), bubur kacang hijau, roti + telur.",
         ]
-    if "Wasting" in whz or "SAM" in whz:
+    if "buruk" in whz or "kurang" in whz:
         focus += [
             "- **Tanda wasting**: ini perlu **evaluasi tenaga kesehatan** lebih cepat (risiko gizi buruk).",
             "- **Segera**: konsultasi puskesmas/dokter untuk rencana terapi gizi yang aman.",
@@ -55,6 +55,67 @@ def _fallback_recommendation(diagnosis: dict[str, str], patient: dict[str, Any])
         base.insert(0, f"**Usia**: {age} bulan")
 
     return "\n".join(base + focus)
+
+
+# def generate_recommendation(diagnosis: dict[str, str], patient: dict[str, Any]) -> LLMRecommendation:
+#     """
+#     Turns diagnose() output into a practical recommendation.
+#     - Uses RAG (Chroma + LangChain) over guideline docs.
+#     - Falls back to deterministic rule-based text if RAG/LLM is unavailable.
+#     """
+#     model_id = os.getenv("LLM_MODEL_ID", "microsoft/Phi-3-mini-4k-instruct")
+#     hf_api_key = os.getenv("HF_API_KEY") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+
+#     prompt = f"""
+#         Anda adalah asisten edukasi gizi anak. Buat rekomendasi langkah berikutnya untuk mencegah/mengatasi stunting.
+#         Gunakan bahasa indonesia yang sederhana, praktis.
+
+#         DATA PASIEN:
+#         - usia (bulan): {patient.get("age_months")}
+#         - jenis kelamin (0=perempuan, 1=laki-laki): {patient.get("sex")}
+#         - berat (kg): {patient.get("weight_kg")}
+#         - tinggi/panjang (cm): {patient.get("height_cm")}
+        
+#         HASIL (WHO):
+#         - Height per Age: {diagnosis.get("Height per Age")}
+#         - Weight per Age: {diagnosis.get("Weight per Age")}
+#         - Weight per Height: {diagnosis.get("Weight per Height")}
+
+#         OUTPUT YANG DIMINTA:
+#         1) Ringkasan hasil (1-2 kalimat).
+#         2) Langkah aksi 7 hari ke depan (berikan dalam bentuk bullet points).
+#         3) Menu/ide makanan (berikan dalam bentuk bullet points), fokus protein hewani & variasi lokal.
+#         4) Tanda bahaya kapan harus ke tenaga kesehatan (berikan dalam bentuk bullet points).
+#         Jangan berikan dosis obat. Jika wasting/SAM, tekankan perlu evaluasi tenaga kesehatan.
+#         """.strip()
+
+#     if not hf_api_key:
+#         return LLMRecommendation(
+#             diagnosis=diagnosis,
+#             recommendation_markdown=_fallback_recommendation(diagnosis, patient),
+#             model_used="fallback",
+#             used_fallback=True,
+#         )
+
+#     try:
+#         maybe_auto_build_index()
+#         rag_text = rag_answer(question=prompt, hf_api_key=hf_api_key, model_id=model_id)
+#         if rag_text:
+#             return LLMRecommendation(
+#                 diagnosis=diagnosis,
+#                 recommendation_markdown=rag_text.strip(),
+#                 model_used=f"rag+{model_id}",
+#                 used_fallback=False,
+#             )
+#         raise RuntimeError("RAG unavailable or returned empty answer")
+#     except Exception as e:
+#         print(f"error: {e}")
+#         return LLMRecommendation(
+#             diagnosis=diagnosis,
+#             recommendation_markdown=_fallback_recommendation(diagnosis, patient),
+#             model_used="fallback",
+#             used_fallback=True,
+#         )
 
 
 def generate_recommendation(diagnosis: dict[str, str], patient: dict[str, Any]) -> LLMRecommendation:
@@ -98,7 +159,7 @@ def generate_recommendation(diagnosis: dict[str, str], patient: dict[str, Any]) 
         )
 
     try:
-        maybe_auto_build_index(gemini_api_key=api_key)
+        maybe_auto_build_index()
         rag_text = rag_answer(question=prompt, gemini_api_key=api_key, model=model)
         if rag_text:
             return LLMRecommendation(
@@ -116,4 +177,3 @@ def generate_recommendation(diagnosis: dict[str, str], patient: dict[str, Any]) 
             model_used="fallback",
             used_fallback=True,
         )
-

@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
 from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import Docx2txtLoader, PyPDFLoader, TextLoader
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -23,8 +23,8 @@ class RagConfig:
     docs_dir: Path
     persist_dir: Path
     collection_name: str = "guideline"
-    chunk_size: int = 300
-    chunk_overlap: int = 80
+    chunk_size: int = 1000
+    chunk_overlap: int = 150
     top_k: int = 4
 
 
@@ -37,13 +37,6 @@ def _default_docs_dir(project_root: Path) -> Path:
 
 
 def get_rag_config() -> RagConfig:
-    """
-    Configure via env:
-    - RAG_DOCS_DIR: path to folder containing guideline docs
-    - RAG_PERSIST_DIR: path to Chroma persistence dir
-    - RAG_COLLECTION: collection name
-    - RAG_TOP_K: retrieved chunks
-    """
     project_root = Path(__file__).resolve().parents[2]
     docs_dir = Path(os.getenv("RAG_DOCS_DIR", str(_default_docs_dir(project_root)))).resolve()
     persist_dir = Path(
@@ -57,7 +50,6 @@ def get_rag_config() -> RagConfig:
 def _has_chroma_index(persist_dir: Path) -> bool:
     if not persist_dir.exists():
         return False
-    # Chroma typically writes a sqlite db and/or collections/segments folders.
     if (persist_dir / "chroma.sqlite3").exists():
         return True
     if (persist_dir / "index").exists():
@@ -112,16 +104,16 @@ def _doc_id(doc) -> str:
     return h.hexdigest()
 
 
-def _get_embeddings(*, gemini_api_key: Optional[str]):
-    if not gemini_api_key:
-        return None
-    return GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=gemini_api_key)
+def _get_embeddings():
+    return HuggingFaceEmbeddings(
+        model_name="intfloat/multilingual-e5-small",
+        model_kwargs={"device": os.getenv("EMBEDDINGS_DEVICE", "cpu")}
+    )
 
 
 def build_or_update_index(
     *,
     config: Optional[RagConfig] = None,
-    gemini_api_key: Optional[str] = None,
     rebuild: bool = False,
 ) -> dict:
     """
@@ -146,17 +138,7 @@ def build_or_update_index(
             "note": "No guideline files found (.pdf/.txt/.md/.docx).",
         }
 
-    embeddings = _get_embeddings(gemini_api_key=gemini_api_key)
-    if embeddings is None:
-        return {
-            "docs_dir": str(config.docs_dir),
-            "persist_dir": str(config.persist_dir),
-            "files": len(files),
-            "loaded_docs": 0,
-            "chunks": 0,
-            "upserted": 0,
-            "note": "GEMINI_API_KEY not set; cannot build vector index (embeddings unavailable).",
-        }
+    embeddings = _get_embeddings()
 
     raw_docs = _load_documents(files)
     chunks = _split_documents(raw_docs, chunk_size=config.chunk_size, chunk_overlap=config.chunk_overlap)
@@ -189,14 +171,12 @@ def build_or_update_index(
     }
 
 
-def get_retriever(*, config: Optional[RagConfig] = None, gemini_api_key: Optional[str] = None):
+def get_retriever(*, config: Optional[RagConfig] = None):
     config = config or get_rag_config()
     if not _has_chroma_index(config.persist_dir):
         return None
 
-    embeddings = _get_embeddings(gemini_api_key=gemini_api_key)
-    if embeddings is None:
-        return None
+    embeddings = _get_embeddings()
 
     from langchain_chroma import Chroma
 
@@ -210,11 +190,11 @@ def get_retriever(*, config: Optional[RagConfig] = None, gemini_api_key: Optiona
 
 def rag_answer(*, question: str, gemini_api_key: Optional[str], model: str,config: Optional[RagConfig] = None) -> Optional[str]:
     config = config or get_rag_config()
-    retriever = get_retriever(config=config, gemini_api_key=gemini_api_key)
+    retriever = get_retriever(config=config)
     if retriever is None:
         return None
 
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=gemini_api_key, temperature=0.4)
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=gemini_api_key, temperature=0.4)
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -239,7 +219,8 @@ def rag_answer(*, question: str, gemini_api_key: Optional[str], model: str,confi
     return None
 
 
-def maybe_auto_build_index(*, config: Optional[RagConfig] = None, gemini_api_key: Optional[str] = None) -> None:
+
+def maybe_auto_build_index(*, config: Optional[RagConfig] = None) -> None:
     """
     If RAG_AUTO_BUILD=true and index is missing, build it from the docs dir.
     """
@@ -249,7 +230,8 @@ def maybe_auto_build_index(*, config: Optional[RagConfig] = None, gemini_api_key
         return
     if _has_chroma_index(config.persist_dir):
         return
-    build_or_update_index(config=config, gemini_api_key=gemini_api_key, rebuild=False)
+    build_or_update_index(config=config, rebuild=False)
+
 
 
 def _main():
@@ -259,10 +241,25 @@ def _main():
     parser.add_argument("--rebuild", action="store_true", help="Delete existing index and rebuild from scratch.")
     args = parser.parse_args()
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    stats = build_or_update_index(gemini_api_key=api_key, rebuild=args.rebuild)
+    stats = build_or_update_index(rebuild=args.rebuild)
     print(stats)
 
 
 if __name__ == "__main__":
     _main()
+
+
+# from langchain_huggingface import HuggingFaceEndpoint
+
+# # Define the LLM
+# llm = HuggingFaceEndpoint(
+#     repo_id="microsoft/Phi-3-mini-4k-instruct", # Example model ID
+#     task="text-generation",
+#     max_new_tokens=512,
+#     temperature=0.5,
+# )
+
+# # Use the model
+# question = "What is the capital of France?"
+# output = llm.invoke(question)
+# print(output)
