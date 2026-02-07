@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - RAG_DOCS_DIR=/app/data/guideline
+      - RAG_PERSIST_DIR=/app/data/chroma_guidelines
+      - RAG_AUTO_BUILD=${RAG_AUTO_BUILD:-false}
+      - EMBEDDINGS_DEVICE=cpu
+    restart: unless-stopped

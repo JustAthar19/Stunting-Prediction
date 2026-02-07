@@ -1,0 +1,23 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+.venv
+venv
+.env
+.python-version
+
+# IDE
+.idea
+.vscode
+.cursor
+
+# Misc
+.DS_Store
+*.md
+!README.md
+logs/
