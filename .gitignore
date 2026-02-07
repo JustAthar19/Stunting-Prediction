@@ -7,7 +7,3 @@ __pycache__
 .venv/
 venv/
 .python-version
-
-# Chroma persistence
-chroma_db/
-data/chroma*/
