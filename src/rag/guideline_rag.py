@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-
-from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
+from langchain_chroma import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
@@ -85,8 +86,6 @@ def _load_documents(paths: list[Path]):
 
 
 def _split_documents(docs, *, chunk_size: int, chunk_overlap: int):
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     return splitter.split_documents(docs)
 
@@ -143,8 +142,6 @@ def build_or_update_index(
     raw_docs = _load_documents(files)
     chunks = _split_documents(raw_docs, chunk_size=config.chunk_size, chunk_overlap=config.chunk_overlap)
 
-    from langchain_chroma import Chroma
-
     config.persist_dir.mkdir(parents=True, exist_ok=True)
     vs = Chroma(
         collection_name=config.collection_name,
@@ -155,7 +152,6 @@ def build_or_update_index(
     ids = [_doc_id(d) for d in chunks]
     vs.add_documents(chunks, ids=ids)
 
-    # Persist for older Chroma wrappers; no-op for newer ones.
     persist = getattr(vs, "persist", None)
     if callable(persist):
         persist()
@@ -194,7 +190,7 @@ def rag_answer(*, question: str, gemini_api_key: Optional[str], model: str,confi
     if retriever is None:
         return None
 
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=gemini_api_key, temperature=0.4)
+    llm = ChatGoogleGenerativeAI(model=model, google_api_key=gemini_api_key, temperature=0.4)
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -221,9 +217,6 @@ def rag_answer(*, question: str, gemini_api_key: Optional[str], model: str,confi
 
 
 def maybe_auto_build_index(*, config: Optional[RagConfig] = None) -> None:
-    """
-    If RAG_AUTO_BUILD=true and index is missing, build it from the docs dir.
-    """
     config = config or get_rag_config()
     auto = (os.getenv("RAG_AUTO_BUILD", "false").strip().lower() in {"1", "true", "yes"})
     if not auto:
@@ -247,19 +240,3 @@ def _main():
 
 if __name__ == "__main__":
     _main()
-
-
-# from langchain_huggingface import HuggingFaceEndpoint
-
-# # Define the LLM
-# llm = HuggingFaceEndpoint(
-#     repo_id="microsoft/Phi-3-mini-4k-instruct", # Example model ID
-#     task="text-generation",
-#     max_new_tokens=512,
-#     temperature=0.5,
-# )
-
-# # Use the model
-# question = "What is the capital of France?"
-# output = llm.invoke(question)
-# print(output)
